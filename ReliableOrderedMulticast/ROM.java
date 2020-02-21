@@ -225,8 +225,13 @@ public class ROM extends Multicaster {
      * @param candidates List of candidates during leader election.
      */
     private void electLeader(Map<Integer, Integer> candidates) {
+        /*
+         * Compare cpu for 1st leader election and local sequence number if sequencer
+         * fails and new leader election is initiated.
+         */
+        Integer value = this.locSeqNum == 0 ? this.cpu : this.locSeqNum;
         /* Candidates have propagated full circle */
-        if (candidates.containsKey(id) && candidates.get(id).equals(this.cpu)) {
+        if (candidates.containsKey(id) && candidates.get(id).equals(value)) {
             this.isElection = false;
             /* Find id with max cpu */
             this.sequencer = selectLeader(candidates);
@@ -245,7 +250,7 @@ public class ROM extends Multicaster {
             sendQueuedMessages();
         }
         /* Only send to neighbor if received candidates contain cpu > this.cpu */
-        else if (Collections.max(candidates.values()).compareTo(this.cpu) > 0) {
+        else if (Collections.max(candidates.values()).compareTo(value) > 0) {
             /* Add self to candidates */
             candidates.replace(id, cpu);
             forwardCandidates(candidates);
@@ -427,7 +432,7 @@ public class ROM extends Multicaster {
              * sender
              */
             if (msg.getInitialSender() == sender
-                    && msg.getMessageNum().compareTo(this.nextMessage.getOrDefault(sender, 0) + 1) == 0) {
+                    && msg.getMessageNum().equals(this.nextMessage.getOrDefault(sender, 0) + 1)) {
                 receiveMessage(msg);
             }
         }
