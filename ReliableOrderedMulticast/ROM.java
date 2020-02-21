@@ -19,24 +19,24 @@ import mcgui.*;
 public class ROM extends Multicaster {
 
     /**
-     * All received messages, <sequence number, message>.
+     * Holds ring topology <id, cpu> of network based on ids (ids are mapped to
+     * addresses in the mcgui package)
      */
-    private Set<ROMMessage> deliveredMessages;
+    private Map<Integer, Integer> nodes;
     /**
      * Keeps track of requests <id> during election in case neighbor fails and we
      * need to contact successor
      */
     private Set<Integer> requests;
     /**
-     * Holds ring topology <id, cpu> of network based on ids (ids are mapped to
-     * addresses in the mcgui package)
+     * All received messages, <sequence number, message>.
      */
-    private Map<Integer, Integer> nodes;
+    private Set<ROMMessage> deliveredMessages;
     /**
      * Keeps not delivered messages in queue so we can resend in case node sends
      * messsages during leader election or sequencer fails.
      */
-    private Set<ROMMessage> queueMessages;
+    private Set<ROMMessage> queuedMessages;
     /**
      * Keeps track of the next message expected from sender, <id, message number>.
      */
@@ -75,10 +75,10 @@ public class ROM extends Multicaster {
      * Initialize node.
      */
     public void init() {
-        this.deliveredMessages = new HashSet<>();
-        this.requests = new HashSet<>();
         this.nodes = buildRingTop();
-        this.queueMessages = new HashSet<>();
+        this.requests = new HashSet<>();
+        this.deliveredMessages = new HashSet<>();
+        this.queuedMessages = new HashSet<>();
         this.nextMessage = new HashMap<>();
         this.pendingMessages = new ArrayList<>();
         this.sequencer = null;
@@ -110,7 +110,6 @@ public class ROM extends Multicaster {
     /**
      * Initiates leader election based on cpu capacity by broadcasting INIT_ELECTION
      * message.
-     * 
      */
     private void initElection() {
         if (!this.isElection) {
@@ -258,17 +257,6 @@ public class ROM extends Multicaster {
     }
 
     /**
-     * Sends queued messages to sequencer.
-     */
-    private void sendQueuedMessages() {
-        Iterator<ROMMessage> q = this.queueMessages.iterator();
-
-        while (q.hasNext()) {
-            bcom.basicsend(this.sequencer, q.next());
-        }
-    }
-
-    /**
      * Finds id of candidate with maximum cpu capacity or local sequence number.
      * 
      * @param candidates List of all candidates from a leader election.
@@ -293,6 +281,17 @@ public class ROM extends Multicaster {
         /* Set most recent sequence number for elected sequencer */
         if (Integer.valueOf(id).equals(this.sequencer)) {
             this.seqNum = this.locSeqNum + 1;
+        }
+    }
+
+    /**
+     * Sends queued messages to sequencer.
+     */
+    private void sendQueuedMessages() {
+        Iterator<ROMMessage> q = this.queuedMessages.iterator();
+
+        while (q.hasNext()) {
+            bcom.basicsend(this.sequencer, q.next());
         }
     }
 
@@ -392,7 +391,7 @@ public class ROM extends Multicaster {
                  * Broadcast delivered message from sequencer to other nodes in case sequencer
                  * crashed and only this node received message.
                  */
-                broadcastDeliveredMessage(msg);
+                multicastDeliveredMessage(msg);
                 /* Send any queued messages to elected sequencer */
                 sendQueuedMessages();
             }
@@ -412,10 +411,11 @@ public class ROM extends Multicaster {
      * 
      * @param msg The message to broadcast.
      */
-    private void broadcastDeliveredMessage(ROMMessage msg) {
-        for (Integer node : nodes.keySet()) {
-            if (node != id && node != this.sequencer) {
-                bcom.basicsend(node, msg);
+    private void multicastDeliveredMessage(ROMMessage msg) {
+        for (Integer nodeId : nodes.keySet()) {
+
+            if (nodeId != id && nodeId != this.sequencer) {
+                bcom.basicsend(nodeId, msg);
             }
         }
     }
@@ -446,7 +446,7 @@ public class ROM extends Multicaster {
     private void removeQueuedMessages(ROMMessage msg) {
         /* Remove message if it was sent it */
         if (id == msg.getInitialSender()) {
-            this.queueMessages.remove(msg);
+            this.queuedMessages.remove(msg);
         }
     }
 
@@ -480,7 +480,7 @@ public class ROM extends Multicaster {
     public void cast(String messagetext) {
         /* Increment local message number and queue message */
         ROMMessage msg = new ROMMessage(id, messagetext, ++this.messageNum);
-        this.queueMessages.add(msg);
+        this.queuedMessages.add(msg);
 
         if (this.sequencer == null) {
             initElection();
