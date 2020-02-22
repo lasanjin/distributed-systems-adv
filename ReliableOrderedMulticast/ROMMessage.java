@@ -166,10 +166,4 @@ public class ROMMessage extends Message {
         return this.candidates;
     }
 
-    // TODO: Do we need this for our Hashsets in ROM ?
-    // @Override
-    // public int hashCode() {
-    // return this.hashCode();
-    // }
-
 }
