@@ -43,10 +43,10 @@ public class ROM extends Multicaster {
      */
     private Map<Integer, Integer> nextMessage;
     /**
-     * Pending messages that have been received before messages previous to them
-     * according to messageNum.
+     * Pending messages that have been received from sender before messages
+     * preceding them according to messageNum.
      */
-    private List<ROMMessage> pendingMessages;
+    private Map<Integer, List<ROMMessage>> pendingMessages;
     /**
      * Id of sequencer.
      */
@@ -82,7 +82,7 @@ public class ROM extends Multicaster {
         this.deliveredMessages = new HashSet<>();
         this.queuedMessages = new HashSet<>();
         this.nextMessage = new HashMap<>();
-        this.pendingMessages = new ArrayList<>();
+        this.pendingMessages = new HashMap<>();
         this.sequencer = null;
         this.cpu = (new Random()).nextInt(999);
         this.seqNum = 0;
@@ -115,7 +115,7 @@ public class ROM extends Multicaster {
          * receives a message before coordination message.
          */
         else {
-            this.pendingMessages.add(msg);
+            ROMUtils.addPendingMessage(this, msg.getInitialSender(), msg);
         }
         /*
          * If message m wasn't delivered then check if we are have pending messages to
@@ -141,7 +141,7 @@ public class ROM extends Multicaster {
             if (messageNum.equals(msg.getMessageNum())) {
                 /* Deliver message (Validity) */
                 this.deliveredMessages.add(msg);
-                mcui.deliver(msg.getInitialSender(), msg.getText());
+                mcui.deliver(sender, msg.getText());
                 /* Remove delivered message from queue */
                 ROMUtils.removeQueuedMessages(this, msg);
                 /* Update next expected message from sender */
@@ -157,7 +157,7 @@ public class ROM extends Multicaster {
             /* A message has been received from sender before its predecessor */
             else {
                 /* Wait until we receive its predecessor */
-                this.pendingMessages.add(msg);
+                ROMUtils.addPendingMessage(this, sender, msg);
                 delivered = false;
             }
         }
@@ -174,6 +174,7 @@ public class ROM extends Multicaster {
         boolean delivered = true;
         /* If node has not delivered message already (Integrity) */
         if (!this.deliveredMessages.contains(msg)) {
+            Integer sender = msg.getInitialSender();
             int compare = msg.getSeqNum().compareTo(this.locSeqNum + 1);
             /* If sequence number from sequencer is expected */
             if (compare == 0) {
@@ -181,11 +182,10 @@ public class ROM extends Multicaster {
                 this.locSeqNum++;
                 /* Deliver message (Validity) */
                 this.deliveredMessages.add(msg);
-                mcui.deliver(msg.getInitialSender(), msg.getText());
+                mcui.deliver(sender, msg.getText());
                 /* Remove delivered message from queue */
                 ROMUtils.removeQueuedMessages(this, msg);
                 /* Update next expected message from sender */
-                Integer sender = msg.getInitialSender();
                 this.nextMessage.put(sender, this.nextMessage.getOrDefault(sender, 0) + 1);
                 /*
                  * Broadcast delivered message from sequencer to other nodes in case sequencer
@@ -198,7 +198,7 @@ public class ROM extends Multicaster {
             /* A message has been received from sequencer before its predecessor */
             else if (compare > 0) {
                 /* Wait until we receive its predecessor */
-                this.pendingMessages.add(msg);
+                ROMUtils.addPendingMessage(this, sender, msg);
                 delivered = false;
             }
         }
@@ -395,8 +395,19 @@ public class ROM extends Multicaster {
     /**
      * @return the pendingMessages
      */
-    public List<ROMMessage> getPendingMessages() {
+    public Map<Integer, List<ROMMessage>> getPendingMessages() {
         return this.pendingMessages;
+    }
+
+    /**
+     * Puts a message mapped to the intital sender of the message in pending
+     * messages.
+     * 
+     * @param sender The initial sender of the message.
+     * @param msgs   The list of message from the sender.
+     */
+    public void putPendingMessage(Integer sender, List<ROMMessage> msgs) {
+        this.pendingMessages.putIfAbsent(sender, msgs);
     }
 
     /**

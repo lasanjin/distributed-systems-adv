@@ -1,5 +1,7 @@
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -77,17 +79,29 @@ public class ROMUtils {
      * @param sender The intial sender of the message.
      */
     public static void deliverPendingMessages(ROM rom, int sender) {
-
-        for (ROMMessage msg : rom.getPendingMessages()) {
-            /*
-             * If pending message is from sender and it is the next message expected from
-             * sender
-             */
-            if (msg.getInitialSender() == sender
-                    && msg.getMessageNum().equals(rom.getNextMessage().getOrDefault(sender, 0) + 1)) {
+        /* Get all pending messages (if any) from sender */
+        List<ROMMessage> messages = rom.getPendingMessages().getOrDefault(sender, new ArrayList<>());
+        for (ROMMessage msg : messages) {
+            /* If pending is the next message expected from sender */
+            if (msg.getMessageNum().equals(rom.getNextMessage().getOrDefault(sender, 0) + 1)) {
                 rom.receiveMessage(msg);
             }
         }
+    }
+
+    /**
+     * Ads a pending message to list of pending messages from sender.
+     * 
+     * @param rom    Reliable Ordered Multicaster.
+     * @param sender The intial sender of the message.
+     * @param msg    The received message.
+     */
+    public static void addPendingMessage(ROM rom, Integer sender, ROMMessage msg) {
+        /* Get the list of pending messages from sender (if any) */
+        List<ROMMessage> messages = rom.getPendingMessages().getOrDefault(sender, new ArrayList<>());
+        /* Update the list of pending messages from sender */
+        messages.add(msg);
+        rom.putPendingMessage(sender, messages);
     }
 
     /**
