@@ -351,15 +351,25 @@ public class ROM extends Multicaster {
     }
 
     /**
-     * Updates node value (cpu capacity or local sequence number).
+     * Updates node value (cpu capacity or local sequence number) if nodes contain
+     * node.
      * 
      * @param id    The nodes id.
      * @param value The value mapped to the node (cpu capacity or local sequence
      *              number).
-     * @return The replaced value.
+     * @return The updated value or null.
      */
-    public Integer replaceNode(int id, Integer value) {
-        return this.nodes.replace(id, value);
+    public Integer updateNodeValue(int id, Integer value) {
+        return this.nodes.containsKey(id) ? this.nodes.put(id, value) : null;
+    }
+
+    /**
+     * Removes node from nodes.
+     * 
+     * @param nodeId The node to remove.
+     */
+    public void removeNode(Integer nodeId) {
+        this.nodes.remove(nodeId);
     }
 
     /**
@@ -407,7 +417,7 @@ public class ROM extends Multicaster {
      * @param msgs   The list of message from the sender.
      */
     public void putPendingMessage(Integer sender, List<ROMMessage> msgs) {
-        this.pendingMessages.putIfAbsent(sender, msgs);
+        this.pendingMessages.put(sender, msgs);
     }
 
     /**

@@ -56,14 +56,14 @@ public class RingLeaderElection {
             /* If first time election, pick node with highest cpu capacity */
             Integer locSeqNum = rom.getLocSeqNum();
             if (locSeqNum == 0) {
-                rom.replaceNode(id, rom.getCpu());
+                rom.updateNodeValue(id, rom.getCpu());
             }
             /*
              * If sequencer has crashes then elect node with highest local sequence number
              */
             else {
                 rom.getNodes();
-                rom.replaceNode(id, locSeqNum);
+                rom.updateNodeValue(id, locSeqNum);
             }
             /* Send candidates to neighbor */
             forwardCandidates(rom, rom.getNodes());
@@ -136,18 +136,17 @@ public class RingLeaderElection {
      * @param candidates List of candidates for leader election.
      */
     public void updateNodes(ROM rom, Map<Integer, Integer> candidates) {
-        Map<Integer, Integer> nodes = rom.getNodes();
-        for (Integer nodeId : nodes.keySet()) {
+        for (Integer nodeId : rom.getNodes().keySet()) {
             /* Remove nodes that have crashed during leader election */
             if (!candidates.containsKey(nodeId)) {
-                nodes.remove(nodeId);
+                rom.removeNode(nodeId);
             }
             /*
              * Received candidates don't contain this.cpu value (unless candidates have
              * propagated full cirlce) -> don't overwrite this.cpu value
              */
             else if (nodeId != rom.getId()) {
-                nodes.replace(nodeId, candidates.get(nodeId));
+                rom.updateNodeValue(nodeId, candidates.get(nodeId));
             }
         }
     }
