@@ -13,7 +13,10 @@ public class ROMMessage extends Message {
      * Generated in terminal: $ serialver ROMMessage
      */
     private static final long serialVersionUID = 5725921430379858860L;
-
+    /**
+     * Unique Id.
+     */
+    private String uid;
     /**
      * Type of message.
      */
@@ -50,6 +53,7 @@ public class ROMMessage extends Message {
      */
     public ROMMessage(int sender, String text, Integer messageNum) {
         super(sender);
+        this.uid = ROMMessageUtils.genUID();
         this.initialSender = sender;
         this.text = text;
         this.messageNum = messageNum;
@@ -166,4 +170,17 @@ public class ROMMessage extends Message {
         return this.candidates;
     }
 
+    /**
+     * Custom hashcode for messsage.
+     * 
+     * @return Unique hashcode of message.
+     */
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((uid.toString() == null) ? 0 : uid.toString().hashCode());
+        result = prime * result + (int) (this.initialSender ^ (this.initialSender >>> 32));
+        return result;
+    }
 }

@@ -6,6 +6,8 @@ import java.util.Map;
 
 /**
  * Helper functions for Reliable Ordered Multicaster.
+ * 
+ * @author Sanjin & Svante
  */
 public class ROMUtils {
 
@@ -81,10 +83,16 @@ public class ROMUtils {
     public static void deliverPendingMessages(ROM rom, int sender) {
         /* Get all pending messages (if any) from sender */
         List<ROMMessage> messages = rom.getPendingMessages().getOrDefault(sender, new ArrayList<>());
-        for (ROMMessage msg : messages) {
+
+        for (int i = 0; i < messages.size(); i++) {
+
+            ROMMessage msg = messages.get(i);
             /* If pending is the next message expected from sender */
             if (msg.getMessageNum().equals(rom.getNextMessage().getOrDefault(sender, 0) + 1)) {
                 rom.receiveMessage(msg);
+                /* Update list of messages from sender */
+                messages.remove(i);
+                rom.putPendingMessage(sender, messages);
             }
         }
     }
@@ -97,6 +105,8 @@ public class ROMUtils {
      * @param msg    The received message.
      */
     public static void addPendingMessage(ROM rom, Integer sender, ROMMessage msg) {
+        // rom.addPendingMessage(msg);
+
         /* Get the list of pending messages from sender (if any) */
         List<ROMMessage> messages = rom.getPendingMessages().getOrDefault(sender, new ArrayList<>());
         /* Update the list of pending messages from sender */
@@ -113,8 +123,8 @@ public class ROMUtils {
      */
     public static void multicastDeliveredMessage(mcgui.BasicCommunicator bcom, ROM rom, ROMMessage msg) {
         for (Integer nodeId : rom.getNodes().keySet()) {
-
-            if (nodeId != rom.getId() && nodeId != rom.getSequencer()) {
+            /* Cast to everyone except self and sequencer */
+            if (nodeId != rom.getId() && nodeId != msg.getSender()) {
                 bcom.basicsend(nodeId, msg);
             }
         }

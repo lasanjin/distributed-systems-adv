@@ -6,6 +6,8 @@ import java.util.Map.Entry;
 
 /**
  * Ring leader election algorithm for electing centralized sequencer.
+ * 
+ * @author Sanjin & Svante
  */
 public class RingLeaderElection {
 
@@ -32,12 +34,23 @@ public class RingLeaderElection {
      */
     public void initElection(ROM rom) {
         if (!rom.getIsElection()) {
+
             int id = rom.getId();
             ROMMessage msg = new ROMMessage(id, MessageType.INIT_ELECTION);
             ROMUtils.broadcast(bcom, rom, msg);
 
+            resetNodes(rom);
             execElection(rom);
         }
+    }
+
+    /**
+     * Reset known nodes values for new leader election.
+     * 
+     * @param rom Reliable Ordered Multicaster.
+     */
+    private void resetNodes(ROM rom) {
+        rom.getNodes().replaceAll((k, v) -> Integer.MIN_VALUE);
     }
 
     /**
@@ -46,28 +59,25 @@ public class RingLeaderElection {
      * @param rom Reliable Ordered Multicaster.
      */
     public void execElection(ROM rom) {
+        /* Reset variables before taking part in election */
+        rom.setIsElection(true);
+        rom.resetSequencer();
+        rom.clearRequests();
+        /* If first time election, pick node with highest cpu capacity */
+        int id = rom.getId();
+        Integer locSeqNum = rom.getLocSeqNum();
 
-        if (!rom.getIsElection()) {
-            int id = rom.getId();
-            /* Reset variables before taking part in election */
-            rom.setIsElection(true);
-            rom.resetSequencer();
-            rom.clearRequests();
-            /* If first time election, pick node with highest cpu capacity */
-            Integer locSeqNum = rom.getLocSeqNum();
-            if (locSeqNum == 0) {
-                rom.updateNodeValue(id, rom.getCpu());
-            }
-            /*
-             * If sequencer has crashes then elect node with highest local sequence number
-             */
-            else {
-                rom.getNodes();
-                rom.updateNodeValue(id, locSeqNum);
-            }
-            /* Send candidates to neighbor */
-            forwardCandidates(rom, rom.getNodes());
+        if (locSeqNum == 0) {
+            rom.updateNodeValue(id, rom.getCpu());
         }
+        /*
+         * If sequencer has crashes then elect node with highest local sequence number
+         */
+        else {
+            rom.updateNodeValue(id, locSeqNum);
+        }
+        /* Send candidates to neighbor */
+        forwardCandidates(rom, rom.getNodes());
     }
 
     /**
@@ -77,26 +87,6 @@ public class RingLeaderElection {
      * @param candidates List of candidates for leader election.
      */
     public void forwardCandidates(ROM rom, Map<Integer, Integer> candidates) {
-        Integer neighbor = findNeighbor(rom);
-        /* Build election message */
-        ROMMessage msg = new ROMMessage(rom.getId(), MessageType.ELECTION);
-        msg.setCandidates(candidates);
-        /*
-         * Keep track of request so we can resend candidates to successor if node fails
-         * during leader election.
-         */
-        rom.addRequest(neighbor);
-        bcom.basicsend(neighbor, msg);
-    }
-
-    /**
-     * Finds neighbor, builds election message and sends candidates to neighbor.
-     * 
-     * @param rom        Reliable Ordered Multicaster.
-     * @param candidates List of candidates for leader election.
-     */
-    public void sendCandidates(ROM rom, Map<Integer, Integer> candidates) {
-
         Integer neighbor = findNeighbor(rom);
         /* Build election message */
         ROMMessage msg = new ROMMessage(rom.getId(), MessageType.ELECTION);
@@ -163,8 +153,8 @@ public class RingLeaderElection {
          * Compare cpu capacity value for 1st leader election and local sequence number
          * if sequencer fails and new leader election is initiated.
          */
-        Integer seqNum = rom.getLocSeqNum();
-        Integer value = seqNum == 0 ? rom.getCpu() : seqNum;
+        Integer locSeqNum = rom.getLocSeqNum();
+        Integer value = locSeqNum == 0 ? rom.getCpu() : locSeqNum;
         /* Candidates have propagated full circle */
         int id = rom.getId();
         if (candidates.containsKey(id) && candidates.get(id).equals(value)) {
@@ -217,7 +207,7 @@ public class RingLeaderElection {
      * 
      * @param rom Reliable Ordered Multicaster.
      */
-    public void setSeqNum(ROM rom) {
+    private void setSeqNum(ROM rom) {
         /* Set most recent sequence number for elected sequencer */
         if (Integer.valueOf(rom.getId()).equals(rom.getSequencer())) {
             rom.setSeqNum(rom.getLocSeqNum() + 1);
@@ -237,9 +227,9 @@ public class RingLeaderElection {
         mcui.debug("Sequencer elected: " + rom.getSequencer());
 
         setSeqNum(rom);
-        /* Send any queued messages to elected sequencer */
-        ROMUtils.sendQueuedMessages(bcom, rom);
         /* Reset requests */
         rom.clearRequests();
+        /* Send any queued messages to elected sequencer */
+        ROMUtils.sendQueuedMessages(bcom, rom);
     }
 }

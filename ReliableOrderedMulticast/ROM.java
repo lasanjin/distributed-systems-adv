@@ -1,4 +1,3 @@
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -21,12 +20,12 @@ public class ROM extends Multicaster {
     protected RingLeaderElection RLE;
     /**
      * Holds ring topology <id, cpu> of network based on ids (ids are mapped to
-     * addresses in the mcgui package)
+     * addresses in the mcgui package).
      */
     private Map<Integer, Integer> nodes;
     /**
      * Keeps track of requests <id> during election in case neighbor fails and we
-     * need to contact successor
+     * need to contact successor.
      */
     private Set<Integer> requests;
     /**
@@ -90,7 +89,6 @@ public class ROM extends Multicaster {
         this.messageNum = 0;
         this.isElection = false;
 
-        // mcui.debug("Number of hosts: " + hosts);
         mcui.debug("Node ID: " + id);
         mcui.debug("CPU: " + cpu);
     }
@@ -101,6 +99,8 @@ public class ROM extends Multicaster {
      * @param msg Message to be delivered.
      */
     public void receiveMessage(ROMMessage msg) {
+        // System.out.println("msg received at: " + super.id);
+
         boolean delivered = false;
         /* I am sequencer */
         if (Integer.valueOf(id).equals(this.sequencer)) {
@@ -148,6 +148,7 @@ public class ROM extends Multicaster {
                 this.nextMessage.put(sender, messageNum);
                 /* Set sequence number and broadcast */
                 msg.setSeqNum(this.seqNum);
+                msg.setSender(this.getId());
                 ROMUtils.broadcast(bcom, this, msg);
                 /* Increment sequence number and deliver message */
                 this.seqNum++;
@@ -166,7 +167,7 @@ public class ROM extends Multicaster {
     }
 
     /**
-     * Delivers message by FIFO order at nodes.
+     * Delivers message by Total Order at nodes.
      * 
      * @param msg The message to deliver.
      */
@@ -178,22 +179,23 @@ public class ROM extends Multicaster {
             int compare = msg.getSeqNum().compareTo(this.locSeqNum + 1);
             /* If sequence number from sequencer is expected */
             if (compare == 0) {
-                /* Update local sequence number */
-                this.locSeqNum++;
                 /* Deliver message (Validity) */
                 this.deliveredMessages.add(msg);
                 mcui.deliver(sender, msg.getText());
-                /* Remove delivered message from queue */
-                ROMUtils.removeQueuedMessages(this, msg);
                 /* Update next expected message from sender */
                 this.nextMessage.put(sender, this.nextMessage.getOrDefault(sender, 0) + 1);
+                /* Remove delivered message from queue */
+                ROMUtils.removeQueuedMessages(this, msg);
+                /* Update local sequence number */
+                this.locSeqNum++;
+                /* Send any queued messages to elected sequencer */
+                ROMUtils.sendQueuedMessages(bcom, this);
                 /*
                  * Broadcast delivered message from sequencer to other nodes in case sequencer
                  * crashed and only this node received message. (Agreement)
                  */
+                msg.setSender(this.getId());
                 ROMUtils.multicastDeliveredMessage(bcom, this, msg);
-                /* Send any queued messages to elected sequencer */
-                ROMUtils.sendQueuedMessages(bcom, this);
             }
             /* A message has been received from sequencer before its predecessor */
             else if (compare > 0) {
@@ -246,14 +248,20 @@ public class ROM extends Multicaster {
                 break;
             /* Initiate new leader election */
             case INIT_ELECTION:
-                RLE.execElection(this);
+                /* Only execute election on first INIT_ELECTION message received */
+                if (!this.isElection) {
+                    RLE.execElection(this);
+                }
                 break;
             /* Ongoing election */
             case ELECTION:
-                Map<Integer, Integer> candidates = msg.getCandidates();
+                /* Don't keep election going if coordination received */
+                if (this.isElection) {
+                    Map<Integer, Integer> candidates = msg.getCandidates();
 
-                RLE.updateNodes(this, candidates);
-                RLE.electLeader(this, candidates);
+                    RLE.updateNodes(this, candidates);
+                    RLE.electLeader(this, candidates);
+                }
                 break;
             /* Sequencer elected */
             case COORDINATION:
@@ -295,50 +303,8 @@ public class ROM extends Multicaster {
      */
 
     /**
-     * Add request for sending candidates to neighbor.
-     * 
-     * @param neighbor The neighbor to send candidates to for leader election.
+     * @return The id of this node.
      */
-    public void addRequest(Integer neighbor) {
-        this.requests.add(neighbor);
-    }
-
-    /**
-     * Resets the requests done sending candidates to neighbor during leader
-     * election.
-     */
-    public void clearRequests() {
-        this.requests.clear();
-    }
-
-    /**
-     * @param suqNum The sequence number to set.
-     */
-    public void setSeqNum(Integer seqNum) {
-        this.seqNum = seqNum;
-    }
-
-    /**
-     * @param sequencer the sequencer to set
-     */
-    public void setSequencer(Integer sequencer) {
-        this.sequencer = sequencer;
-    }
-
-    /**
-     * Resets sequencer (Sets sequencer = null)
-     */
-    public void resetSequencer() {
-        this.sequencer = null;
-    }
-
-    /**
-     * @param isElection the isElection to set
-     */
-    public void setIsElection(Boolean isElection) {
-        this.isElection = isElection;
-    }
-
     public int getId() {
         return super.getId();
     }
@@ -370,6 +336,23 @@ public class ROM extends Multicaster {
      */
     public void removeNode(Integer nodeId) {
         this.nodes.remove(nodeId);
+    }
+
+    /**
+     * Add request for sending candidates to neighbor.
+     * 
+     * @param neighbor The neighbor to send candidates to for leader election.
+     */
+    public void addRequest(Integer neighbor) {
+        this.requests.add(neighbor);
+    }
+
+    /**
+     * Resets the requests done sending candidates to neighbor during leader
+     * election.
+     */
+    public void clearRequests() {
+        this.requests.clear();
     }
 
     /**
@@ -412,12 +395,26 @@ public class ROM extends Multicaster {
     /**
      * Puts a message mapped to the intital sender of the message in pending
      * messages.
-     * 
+     *
      * @param sender The initial sender of the message.
      * @param msgs   The list of message from the sender.
      */
     public void putPendingMessage(Integer sender, List<ROMMessage> msgs) {
         this.pendingMessages.put(sender, msgs);
+    }
+
+    /**
+     * @param sequencer the sequencer to set
+     */
+    public void setSequencer(Integer sequencer) {
+        this.sequencer = sequencer;
+    }
+
+    /**
+     * Resets sequencer (Sets sequencer = null)
+     */
+    public void resetSequencer() {
+        this.sequencer = null;
     }
 
     /**
@@ -435,6 +432,13 @@ public class ROM extends Multicaster {
     }
 
     /**
+     * @param suqNum The sequence number to set.
+     */
+    public void setSeqNum(Integer seqNum) {
+        this.seqNum = seqNum;
+    }
+
+    /**
      * @return the seqNum
      */
     public Integer getSeqNum() {
@@ -446,6 +450,13 @@ public class ROM extends Multicaster {
      */
     public Integer getLocSeqNum() {
         return this.locSeqNum;
+    }
+
+    /**
+     * @param state the state to set.
+     */
+    public void setIsElection(Boolean state) {
+        this.isElection = state;
     }
 
     /**
