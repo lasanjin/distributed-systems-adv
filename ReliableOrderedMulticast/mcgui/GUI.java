@@ -20,9 +20,9 @@ import java.io.*;
  */
 public class GUI extends JFrame implements MulticasterUI {
     
-    private final int        defaultStress = 10;
+    private final int        defaultStress = 100;
     
-    private final int        maxMessages = 200;
+    private final int        maxMessages = 1000;
     private final int        maxDebugs   = 1000;
     
     java.util.LinkedList<String> recentMessages;

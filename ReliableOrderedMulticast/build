@@ -1,0 +1,6 @@
+#!/bin/bash
+
+#build mcgui package
+javac mcgui/*.java
+#build ROM
+javac *.java

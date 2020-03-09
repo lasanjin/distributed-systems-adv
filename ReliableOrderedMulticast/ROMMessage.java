@@ -10,7 +10,7 @@ import mcgui.*;
 public class ROMMessage extends Message {
 
     /**
-     * Generated in terminal: $ serialver ROMMessage
+     * Generated in terminal: $ serialver ROMMessage.
      */
     private static final long serialVersionUID = 5725921430379858860L;
     /**

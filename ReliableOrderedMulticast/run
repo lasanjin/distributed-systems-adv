@@ -1,0 +1,11 @@
+#!/bin/bash
+
+setup="localhostsetup"
+caster="ROM"
+nodes=$(head -n 1 $setup)
+
+i=$(($nodes - 1))
+
+for i in $(seq 0 $i); do
+    java mcgui.Main $caster ${i} $setup &
+done

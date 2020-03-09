@@ -3,6 +3,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 
+/**
+ * Helper functions for ROM Message.
+ * 
+ * @author Sanjin & Svante
+ */
 public class ROMMessageUtils {
 
     private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
@@ -19,7 +24,7 @@ public class ROMMessageUtils {
         MessageDigest salt;
         String digest = "";
         try {
-            salt = MessageDigest.getInstance("SHA-256");
+            salt = MessageDigest.getInstance("SHA-512");
             salt.update(UUID.randomUUID().toString().getBytes("UTF-8"));
             digest = bytesToHex(salt.digest());
 
