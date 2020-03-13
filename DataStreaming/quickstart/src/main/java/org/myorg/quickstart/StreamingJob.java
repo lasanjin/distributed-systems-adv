@@ -22,13 +22,13 @@ public class StreamingJob {
         DataStream<String> source = env.readTextFile(dataPath);
 
         /* Get Time and Spd from h1.txt: [[0, Time, VID, Spd, XWay, Lane, Dir, Seg, Pos], ...] */
-        DataStream<Tuple2<Long, Integer>> dataStream = StreamJobUtils.parseData(source);
+        DataStream<Tuple2<Long, Float>> dataStream = StreamJobUtils.parseData(source);
 
         /* A1: Average speed (tumbling window of 1 minute) of cars traveling > 20 MPH */
-        DataStream<Tuple2<Long, Integer>> avgHigh = StreamJobUtils.streamJobBuilder(dataStream, true);
+        DataStream<Tuple2<Long, Float>> avgHigh = StreamJobUtils.streamJobBuilder(dataStream, true);
 
         /* A2: Average speed (tumbling window of 1 minute) of cars traveling < 20 MPH */
-        DataStream<Tuple2<Long, Integer>> avgLow = StreamJobUtils.streamJobBuilder(dataStream, false);
+        DataStream<Tuple2<Long, Float>> avgLow = StreamJobUtils.streamJobBuilder(dataStream, false);
 
         /* Join average streams */
         DataStream<Object> joinedStream = StreamJobUtils.joinStreams(avgLow, avgHigh);

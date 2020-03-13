@@ -19,7 +19,7 @@ public class StreamJobUtils {
     private StreamJobUtils() {
     }
 
-    public static DataStream<Tuple2<Long, Integer>> parseData(DataStream<String> source) {
+    public static DataStream<Tuple2<Long, Float>> parseData(DataStream<String> source) {
         return source
                 /* Parse the string data */
                 .map(new mapData())
@@ -27,27 +27,27 @@ public class StreamJobUtils {
                 .assignTimestampsAndWatermarks(new timeStampExtractor());
     }
 
-    private static class mapData implements MapFunction<String, Tuple2<Long, Integer>> {
+    private static class mapData implements MapFunction<String, Tuple2<Long, Float>> {
         @Override
-        public Tuple2<Long, Integer> map(String string) throws Exception {
+        public Tuple2<Long, Float> map(String string) throws Exception {
             /* Split the data */
             String[] data = string.split(",");
             /* Save Time and Spd */
-            return new Tuple2<Long, Integer>(
-                    Long.parseLong(data[1]), Integer.parseInt(data[3]));
+            return new Tuple2<Long, Float>(
+                    Long.parseLong(data[1]), Float.parseFloat(data[3]));
         }
     }
 
-    private static class timeStampExtractor extends AscendingTimestampExtractor<Tuple2<Long, Integer>> {
+    private static class timeStampExtractor extends AscendingTimestampExtractor<Tuple2<Long, Float>> {
         @Override
         public long extractAscendingTimestamp(
-                Tuple2<Long, Integer> values) {
+                Tuple2<Long, Float> values) {
             /* Flink wants millisec */
             return values.f0 * 1000;
         }
     }
 
-    public static DataStream<Tuple2<Long, Integer>> streamJobBuilder(DataStream<Tuple2<Long, Integer>> dataStream, boolean gt) {
+    public static DataStream<Tuple2<Long, Float>> streamJobBuilder(DataStream<Tuple2<Long, Float>> dataStream, boolean gt) {
         return dataStream
                 /* Filter data */
                 .filter(new SpeedFilter(gt))
@@ -57,7 +57,7 @@ public class StreamJobUtils {
                 .apply(new AverageSpeedWindow());
     }
 
-    private static class SpeedFilter implements FilterFunction<Tuple2<Long, Integer>> {
+    private static class SpeedFilter implements FilterFunction<Tuple2<Long, Float>> {
         /* Greater than */
         private boolean gt;
 
@@ -66,28 +66,28 @@ public class StreamJobUtils {
         }
 
         @Override
-        public boolean filter(Tuple2<Long, Integer> values) throws Exception {
-            int speed = values.f1;
+        public boolean filter(Tuple2<Long, Float> values) throws Exception {
+            Float speed = values.f1;
             return gt ? speed > 20 : speed < 20;
         }
     }
 
-    private static class AverageSpeedWindow implements AllWindowFunction<Tuple2<Long, Integer>, Tuple2<Long, Integer>, TimeWindow> {
+    private static class AverageSpeedWindow implements AllWindowFunction<Tuple2<Long, Float>, Tuple2<Long, Float>, TimeWindow> {
         @Override
         public void apply(TimeWindow window,
-                          Iterable<Tuple2<Long, Integer>> values,
-                          Collector<Tuple2<Long, Integer>> collector) throws Exception {
-            Integer sum = 0;
+                          Iterable<Tuple2<Long, Float>> values,
+                          Collector<Tuple2<Long, Float>> collector) throws Exception {
+            Float sum = (float) 0;
             int count = 0;
-            for (Tuple2<Long, Integer> tuple : values) {
+            for (Tuple2<Long, Float> tuple : values) {
                 sum += tuple.f1;
                 count++;
             }
-            collector.collect(new Tuple2<Long, Integer>(window.maxTimestamp(), sum / count));
+            collector.collect(new Tuple2<Long, Float>(window.maxTimestamp(), sum / count));
         }
     }
 
-    public static DataStream<Object> joinStreams(DataStream<Tuple2<Long, Integer>> avgLow, DataStream<Tuple2<Long, Integer>> avgHigh) {
+    public static DataStream<Object> joinStreams(DataStream<Tuple2<Long, Float>> avgLow, DataStream<Tuple2<Long, Float>> avgHigh) {
         /* Join average streams */
         return avgLow.join(avgHigh)
                 .where(new TimeWindowKeySelector())
@@ -96,13 +96,13 @@ public class StreamJobUtils {
                 .apply(new JoinAverage());
     }
 
-    private static class JoinAverage implements JoinFunction<Tuple2<Long, Integer>, Tuple2<Long, Integer>, Object> {
+    private static class JoinAverage implements JoinFunction<Tuple2<Long, Float>, Tuple2<Long, Float>, Object> {
         @Override
-        public Tuple4<Long, Integer, Integer, String> join(
-                Tuple2<Long, Integer> first,
-                Tuple2<Long, Integer> second) throws Exception {
+        public Tuple4<Long, Float, Float, String> join(
+                Tuple2<Long, Float> first,
+                Tuple2<Long, Float> second) throws Exception {
             /* |A2-A1| */
-            int abs = Math.abs(first.f1 - second.f1);
+            float abs = Math.abs(first.f1 - second.f1);
 
             Tuple4 res = new Tuple4(first.f0, first.f1, second.f1, null);
             res.setField(abs > 20 ? "alert" : "ok", 3);
@@ -111,9 +111,9 @@ public class StreamJobUtils {
         }
     }
 
-    private static class TimeWindowKeySelector implements KeySelector<Tuple2<Long, Integer>, Long> {
+    private static class TimeWindowKeySelector implements KeySelector<Tuple2<Long, Float>, Long> {
         @Override
-        public Long getKey(Tuple2<Long, Integer> values) throws Exception {
+        public Long getKey(Tuple2<Long, Float> values) throws Exception {
             return values.f0;
         }
     }
