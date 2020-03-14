@@ -22,12 +22,21 @@ public class StreamJobUtils {
     public static DataStream<Tuple2<Long, Float>> parseData(DataStream<String> source) {
         return source
                 /* Parse the string data */
-                .map(new mapData())
+                .map(new MapData())
                 /* Flink needs to know the events’ timestamps */
-                .assignTimestampsAndWatermarks(new timeStampExtractor());
+                .assignTimestampsAndWatermarks(new TimeStampExtractor());
     }
 
-    private static class mapData implements MapFunction<String, Tuple2<Long, Float>> {
+    public static DataStream<Object> joinStreams(DataStream<Tuple2<Long, Float>> avgLow, DataStream<Tuple2<Long, Float>> avgHigh) {
+        /* Join average streams */
+        return avgLow.join(avgHigh)
+                .where(new TimeWindowKeySelector())
+                .equalTo(new TimeWindowKeySelector())
+                .window(TumblingEventTimeWindows.of(Time.seconds(60)))
+                .apply(new JoinAverage());
+    }
+
+    private static class MapData implements MapFunction<String, Tuple2<Long, Float>> {
         @Override
         public Tuple2<Long, Float> map(String string) throws Exception {
             /* Split the data */
@@ -38,7 +47,7 @@ public class StreamJobUtils {
         }
     }
 
-    private static class timeStampExtractor extends AscendingTimestampExtractor<Tuple2<Long, Float>> {
+    private static class TimeStampExtractor extends AscendingTimestampExtractor<Tuple2<Long, Float>> {
         @Override
         public long extractAscendingTimestamp(
                 Tuple2<Long, Float> values) {
@@ -85,15 +94,6 @@ public class StreamJobUtils {
             }
             collector.collect(new Tuple2<Long, Float>(window.maxTimestamp(), sum / count));
         }
-    }
-
-    public static DataStream<Object> joinStreams(DataStream<Tuple2<Long, Float>> avgLow, DataStream<Tuple2<Long, Float>> avgHigh) {
-        /* Join average streams */
-        return avgLow.join(avgHigh)
-                .where(new TimeWindowKeySelector())
-                .equalTo(new TimeWindowKeySelector())
-                .window(TumblingEventTimeWindows.of(Time.seconds(60)))
-                .apply(new JoinAverage());
     }
 
     private static class JoinAverage implements JoinFunction<Tuple2<Long, Float>, Tuple2<Long, Float>, Object> {
